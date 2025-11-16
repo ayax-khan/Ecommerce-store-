@@ -1,0 +1,254 @@
+﻿Buy2Enjoy E-Commerce Platform – Technical Specification Document
+Version: 1.2  Date: 2025-09-07  Prepared by: Mustafa Khan / Engineering Team
+Table of Contents
+1. Introduction & Executive Summary
+2. Scope, Goals & Constraints
+3. Actors, Use Cases & User Stories
+4. Functional Requirements
+4.1 Customer Features & Flows
+4.2 Seller/Admin Features & Flows
+5. Non-Functional Requirements
+6. System Architecture & Tech Stack
+7. User Interface Design (Homepage & UX)
+8. Seller Center & Admin Panel Integration
+9. Database Design & Data Models
+10. API Endpoints & Integration
+11. Data Flow & Event-Driven Processes
+12. Inventory Management & Concurrency
+13. Payments & Gateway Integration
+14. Search, Indexing & Discovery
+15. Caching, CDN & Media Handling
+16. Security, Privacy & Compliance
+17. Observability, Monitoring & Runbooks
+18. Deployment, CI/CD & Infrastructure
+19. Testing & Quality Assurance
+20. Operational Continuity, DR & Backups
+21. Risks, Mitigations & Roadmap
+22. Appendices (Examples, Checklists)
+1. Introduction & Executive Summary
+Buy2Enjoy is a single-vendor e-commerce platform built with a marketplace-style architecture. It provides a responsive, SEO-optimized online storefront for stationery products (pricing in PKR, language English), along with a robust internal Seller Center / Admin Panel for catalog and order management[1][2]. The platform’s design prioritizes reliable transactional flows (orders, payments, inventory), flexible catalog management, fast search, and extensibility (e.g. future multi-vendor support)[2]. It integrates third-party services such as local payment gateways (JazzCash, Easypaisa, local banks), shipping APIs (e.g. Leopards), and analytics/notification services. Industry-standard security (JWT/OAuth2 auth, role-based access, SSL/TLS, PCI-DSS compliance) protects data[1][3]. The design emphasizes scalability (microservices, containerization, cloud hosting) to handle thousands of concurrent users with 99.9% uptime[1][4].
+2. Scope, Goals & Constraints
+• Scope: Build a full-featured stationery e-commerce site (customer storefront + admin/Seller Center) that can handle catalog browsing, checkout, order tracking, and seller/admin workflows[1][5]. Although starting as single-seller, the architecture is “marketplace-ready” for future expansion. The site must sync with an existing Seller Center (tstore.codingwitht.com) via secure APIs or DB sync[6][7].
+• Goals: Provide a seamless shopping experience and efficient backend management. Key goals include: sub-second page loads, <500ms API latency p95, SEO-friendly pages, rich search/filters, robust order/payment processing, and real-time inventory updates[1][8].
+• Constraints: Use Next.js (React) for the frontend, NestJS (Node.js) for backend services[9][10]. Store catalog data in MongoDB (flexible schema) and transactional data in PostgreSQL (ACID)[10][11]. Deploy on AWS (recommended) using Docker/Kubernetes and infrastructure-as-code (Terraform)[12][13]. Comply with PCI-DSS by using tokenized payment flows (e.g. Stripe Checkout) and secure data handling[12][14].
+3. Actors, Use Cases & User Stories
+• Actors: The system involves Customers (shoppers), Admin/Seller (internal users managing products and orders), Operations/Engineers, Finance/Accounting roles, and external Couriers (e.g. Leopards/TCS APIs)[15].
+• Use Cases / User Stories: Key scenarios include:
+• Customer: Browse/search products with filters, view detailed pages, add items to cart or wishlist, and checkout using secure payments[16][17].
+• Customer: Manage account profile, addresses, view order history, track deliveries, and initiate returns[18][19].
+• Admin: Upload products in bulk (CSV), perform CRUD on products/stock, process orders (pack/ship), and run analytics reports[20][17].
+• Operations: Monitor system health and performance (e.g. alert on failed checkouts or slow database queries)[21].
+These use cases ensure complete coverage of customer shopping flows and internal administrative workflows[22][17].
+4. Functional Requirements
+4.1 Customer Features & Flows
+• Browsing & Search: Customers can search or browse by category. Product listings support faceted filters (brand, price, color, etc.) and sorting (price, popularity). Product pages show images, descriptions, pricing, available stock, and reviews[23][16]. Autocomplete and typo-tolerance are supported, and personalized suggestions (“You might also like”) are shown based on browsing history[16][24].
+• Home & Promotions: The homepage features a top bar with logo, search field, and icons for wishlist, account, and cart. Below is a horizontal navigation menu (e.g. Deals, Electronics, Fine Arts, Pens, Brushes, etc.)[25]. A scrolling marquee shows announcements or promotions[26], followed by a full-width carousel of banners (seasonal offers or featured collections)[27]. Further down, stacked content sections present Hot Deals, Best Sellers, New Arrivals, and Category Highlights (e.g. “Fine Arts Kits”), each with a “View All” link. Each product card shows image, name, price, and a quick “Add to Cart” button[28][29]. These elements provide an Amazon-like user-friendly homepage[30][16].
+• Shopping Cart & Wishlist: Users (even guests via session token) can add/remove items in a cart, adjust quantities, and save carts or items for later. The cart page lists item images, names, unit prices, and subtotals, with coupon/gift card entry[31][32]. A Wishlist allows logged-in customers to mark products for future purchase; wishlists are stored per user[31][33].
+• Checkout: The checkout process collects/validates shipping and billing addresses, allows address selection or addition, and offers shipping options. Multiple payment methods are supported: local bank transfers, Easypaisa, JazzCash, and credit/debit cards via Stripe (or similar)[34][35]. Payment is processed via PCI-compliant flows. Upon successful payment, an order is created and confirmation emails/invoices are sent. The backend computes totals (item costs, discounts, taxes, shipping) in real time[16][36].
+• Order Tracking & History: After purchase, customers see the order status timeline (Pending, Paid, Processing, Shipped, Delivered, etc.) in their account. The system integrates courier tracking APIs (e.g. Leopards) so real-time shipping updates appear on the order page[34][37]. Email/SMS notifications are sent at key stages (order confirmation, shipment, delivery) and customers can request returns or refunds through the portal[18][37].
+• Account Management: Users can register/login. In their dashboard they can update personal info, manage multiple shipping addresses, view order history, and initiate returns/refunds[18][38]. Passwords are securely hashed and email verification/password reset flows are included. Role-based access ensures regular customers have limited privileges[35][39].
+These customer features reflect modern e-commerce standards for product exploration, cart management, checkout, and post-purchase support[18][16].
+4.2 Seller/Admin Features & Flows
+The Seller Center (internal portal) allows admins/sellers to manage the entire catalog and orders[40][41]. Key features include:
+• Product Management: Create, update, or delete products, categories, brands, and inventory. Bulk upload of products (via Excel/CSV) is supported[40][20]. The portal fields (name, description, price, stock, images, variants, etc.) align with the website’s schema so that changes sync automatically to the storefront. Product approvals/drafts can be managed by admins before publishing[42][43].
+• Order Management: View all customer orders, filter by status, and update statuses (Processing, Packed, Shipped, etc.)[44][20]. Admins can make manual adjustments (e.g. overriding totals), initiate refunds, and generate invoices (PDF stored on S3). Packing and shipment steps are tracked; once an order is marked shipped, shipping labels can be generated quickly (integrated via courier APIs)[45][46].
+• Inventory Sync: Stock levels are updated in real time. Changes made in the Seller Center (e.g. restocking an item) are immediately reflected on the website to prevent overselling[47].
+• Analytics & Reporting: Sales and inventory dashboards provide metrics (sales by category, bestselling products, inventory turnover)[48][49]. Reports can be exported (CSV/Excel) and custom analytics (e.g. revenue trends, abandoned carts) can be generated[48].
+• User Management: Admins and internal staff have role-based access. The system supports multiple roles (admin, manager, etc.) with appropriate permissions[35][39].
+These backend capabilities give administrators full control over products, orders, inventory, discounts, and customer management[40][50]. All data exchanges between the website and Seller Center use a secure REST API (or GraphQL) layer; for example, new products may be pulled via scheduled API calls or webhooks, and orders pushed back for processing[51].
+5. Non-Functional Requirements
+• Performance: Target API latency is p95 < 500ms (search < 200ms) under normal load, with end-to-end checkout flow under 2s[8]. Page load times should be <1s for key pages, using efficient caching and CDNs.
+• Scalability: The system must handle traffic spikes (e.g. promotions) via auto-scaling services and message queuing. Initial capacity should support ~10,000 concurrent users with headroom for growth[52]. Microservices allow independent scaling of components (e.g. inventory, search).
+• Availability: Design for 99.9% uptime SLA. Use redundant deployments (multiple instances, load balancing) and cloud-managed services. Planned downtime is minimized.
+• SEO and Responsiveness: The frontend is server-rendered (Next.js) with proper meta tags for SEO. Layouts are mobile-responsive to support all devices[53][54].
+• Security: All communication is over HTTPS/TLS. Input validation, sanitization, and parameterized queries prevent injection attacks[3]. Rate limiting, WAF, and secure headers (CSP, HSTS) protect against OWASP threats[14]. JWT tokens (RS256) with short TTL and refresh tokens manage sessions[3][14].
+• Compliance: PCI-DSS controls apply to payment handling. We use tokenized/redirect flows (e.g. Stripe Checkout) to reduce PCI scope[14]. Sensitive data (cards) is never stored on our servers. Data protection follows local regulations (e.g. GDPR/Pakistan data laws); user data export/delete endpoints are available.
+• Maintainability: Code and architecture follow clean coding and DevOps best practices. Services are modular and well-documented, enabling rapid development and onboarding.
+6. System Architecture & Tech Stack
+The platform uses a microservices-based architecture for modularity and scalability[55][56]. The high-level components are:
+• Frontend (Web Client): Built with Next.js (React) for server-side rendering (SEO) and client-side interactivity. It handles user UI (product pages, cart, checkout forms) and invokes backend APIs[57][56].
+• Backend Services: A set of NestJS (Node.js) microservices providing REST/GraphQL APIs. Key services include Catalog, Orders, Payments, Inventory, Search Indexer, Admin, Notification, etc. Each service encapsulates its own logic and data storage. An API Gateway (or BFF) handles authentication, routing, and rate limiting[57][58].
+• Datastores: A polyglot persistence approach:
+• MongoDB (e.g. MongoDB Atlas) for the product catalog and any document-oriented data (products with variants, attributes)[10][11].
+• PostgreSQL (e.g. AWS RDS/Aurora) for transactional data requiring ACID consistency: users, orders, payments, inventory, and the outbox table[10][59].
+• Typesense/Elasticsearch for full-text product search, kept in sync via events.
+• Redis (ElastiCache) for caching and distributed locks (inventory reservation).
+• S3/Cloudinary for media storage.
+• Message Broker: A queue decouples services using an event-driven architecture. We use the Outbox pattern: transactions write an event to an outbox table which a publisher polls and forwards to the broker[60]. Consumers (e.g. Inventory, Notification services) subscribe to relevant events (OrderPlaced, PaymentSucceeded, InventoryUpdated) to react asynchronously.
+• Third-Party Integrations: External systems (payment gateways, couriers, email/SMS providers) are integrated via APIs. Webhook endpoints handle asynchronous events (e.g. payment confirmation).
+• Deployment: Containerized (Docker) and orchestrated on AWS (EKS/ECS) or similar, with IaC (Terraform). CI/CD pipelines (GitHub Actions) automate build, test, and rollout to staging/production environments[61][62].
+• Diagram: The following illustrates the system components and their interactions in a typical request flow.
+Figure 1: High-Level System Architecture (frontend, microservices, datastores, and integrations).
+The architecture ensures horizontal scalability (by adding service instances) and failure isolation. For example, a spike in search traffic scales the Search Indexer independently; a slow payment gateway does not halt the product catalog service.
+Tech Stack: Next.js/React (frontend), NestJS/Node.js (backend), PostgreSQL, MongoDB, Typesense, , Docker/Kubernetes, AWS (or Vercel/Railway)[9][10]. Authentication uses JWT + OAuth2 with role-based access. Payments: Stripe + JazzCash/EasyPaisa + local banks. Continuous deployment targets staging/prod with load-balanced environments.
+7. User Interface Design (Homepage & UX)
+The homepage layout follows best practices for e-commerce:
+• Top Bar: Left-aligned store logo linking to home; center-search field with autocomplete; right icons for Wishlist, User Account (login/profile), and Shopping Cart[25]. This mirrors common sites like Amazon or Stationers.pk for familiarity.
+• Navigation Menu: A horizontal menu with categories such as Deals, Electronics, Fine Arts, Pens, Brushes, Office Supplies, School Supplies, Books & Novels, Arts & Crafts, Canvas & Easel, Top Brands (e.g. Parker, Winsor & Newton)[63]. Subcategories appear on hover.
+• Announcements Ticker: Below the menu, a live marquee displays announcements or promotions (e.g. “Flat 10% off on all notebooks!” or new shipping times)[26].
+• Promotional Carousel: A full-width rotating banner area showcases seasonal offers or featured collections, each with a headline and “Shop Now” button[64]. Images are high-quality and mobile-optimized.
+• Content Sections: Vertically stacked blocks labeled with section titles:
+• Hot Deals: Grid of discounted products (showing original price, sale price, and percentage off)[65].
+• Best Sellers: Top-selling items (populated from sales data).
+• New Arrivals: Recently added products.
+• Category Highlights: Focused collections (e.g. “Fine Arts Kits”, “Office Desk Accessories”) with representative images[29].
+Each section has a “View All” link. Products are displayed in cards (image, name, price, quick add-to-cart)[29].
+• Footer & Misc: The bottom of the page includes links (about us, policies), newsletter signup, and social media icons.
+These UI features are designed for easy navigation: users can quickly search or browse categories, view products, and proceed to purchase. We can also display personalized recommendations (“You might also like…”) based on browsing history[16]. The site uses responsive layouts (mobile-first) to ensure usability on all devices, with collapsible menus and optimized image loading.
+Key Modules: The main site modules (and their key features) include[66]:
+ModuleKey FeaturesHomepageBanners/Carousel, Search, Category Menus, Promo Blocks, Personalized Recommendations[67]Catalog/SearchFilter/sort listings (brand, price, etc.), Quick View, Pagination[68]Product PageMultiple images, specifications, customer reviews, related products[69]Cart/WishlistAdd/remove items, quantity update, apply coupon, Save-for-later[32]CheckoutAddress entry/selection, shipping method, payment processing[70]Account AreaProfile info, manage addresses, order history, shipment tracking, returns[71]Table 1: Customer-facing site modules and key features[67][72].
+8. Seller Center & Admin Panel Integration
+The Seller Center (accessible at tstore.codingwitht.com) is the back-office for admins/sellers. The e-commerce site syncs with this portal via secure APIs or direct database integration[40]. Integration points include:
+• Product Sync: When a seller creates/updates products in the Seller Center (including bulk uploads via CSV), the site fetches these changes. For example, an API endpoint (or periodic job) can pull new products, and the database schema (Products, Categories, Brands tables) must accommodate all fields (name, description, price, stock, images, variants)[40].
+• Order Push: Orders placed on the website are sent (via API/webhook) to the Seller Center. Admins update order statuses (processing, shipped, etc.) in the Seller Center, which are then synced back to the customer site so users can track status[73].
+• Inventory Updates: Stock levels adjusted by sellers (e.g. after restocking or cancellations) update the site’s inventory in real time[74]. Conversely, when customers place orders, the system decrements inventory and notifies the Seller Center.
+• Analytics & Reporting: Sales and inventory data flow between the systems. Dashboards in the Seller Center display metrics like sales by category, top products, and stock turnover[75].
+Administrators interact with the Seller Center to manage these operations (product CRUD, order fulfillment, reporting)[40][20]. The e-commerce platform also includes an Admin Panel (built on the same codebase or as a separate micro-frontend) that allows basic admin tasks (user management, discount campaigns) and future extensibility. In short, the platform ensures seamless data exchange: new seller products appear automatically online, and customer orders propagate to the Seller Center for fulfillment[51][20].
+9. Database Design & Data Models
+We employ a centralized relational database (PostgreSQL) with a normalized schema for transactional data[76]. Key tables include: Users, Addresses, Products, Categories, Brands, Orders, OrderItems, Cart, CartItems, Wishlist, WishlistItems, Payments, Shipments, Discounts/Coupons, Notifications[76][77]. Relationships are defined via foreign keys (e.g. Orders.user_id → Users, OrderItems.order_id → Orders)[76][77].
+Important relationships: one User has many Orders, CartItems, and multiple Addresses[78]; each Order has many OrderItems, one Payment, and one Shipment[79]; Products belong to one Category and Brand (categories may have parent/child)[80]; each User has one active Cart and one Wishlist containing multiple items[81]. Discount/Coupons can apply to orders or users[82]. All flows are ACID transactions to maintain consistency.
+Table Schemas (examples): Core tables and primary fields[54][83]:
+- Users: user_id (PK), name, email (unique), password_hash, phone, role (customer/admin), created_at.
+- Addresses: address_id (PK), user_id (FK), label, line1, line2, city, state, country, postal_code[84].
+- Products: product_id (PK), name, description, price, stock_qty, image_url, category_id (FK), brand_id (FK)[85].
+- Categories: category_id (PK), name, parent_id (FK→Categories) for subcategories[86].
+- Brands: brand_id (PK), name[86].
+- Orders: order_id (PK), user_id (FK), order_date, status (Pending/Processing/Shipped/etc.), total_amount, discount_amount, shipping_address_id (FK)[87].
+- OrderItems: order_item_id (PK), order_id (FK), product_id (FK), quantity, unit_price[88].
+- Payments: payment_id (PK), order_id (FK), gateway (Bank/EasyPaisa/JazzCash/Card), amount, status, transaction_id, paid_at[89].
+- Shipments: shipment_id (PK), order_id (FK), courier (Leopards, etc.), tracking_number, status, shipped_at, delivered_at[90].
+- Cart: cart_id (PK), user_id (FK), created_at, updated_at (one cart per user)[91].
+- CartItems: cart_item_id (PK), cart_id (FK), product_id (FK), quantity[91].
+- Wishlist: wishlist_id (PK), user_id (FK)[92].
+- WishlistItems: wishlist_item_id (PK), wishlist_id (FK), product_id (FK)[92].
+- Discounts/Coupons: coupon_id (PK), code (unique), type (percentage/fixed), amount, max_uses, expires_at[93].
+- Notifications: notification_id (PK), user_id (FK), type (order_update, promotional, etc.), message, is_read, created_at[94].
+(See Appendix C for full SQL DDL.) The relational schema covers all features: user accounts and profiles, rich product catalog, shopping cart/wishlist, order processing (with payments and shipments), and coupons. Appropriate indexes are defined (e.g. on email, product_id, order_date) for fast lookups.
+Polyglot Persistence: For catalog flexibility, we also use MongoDB to store product documents (with nested variants, attributes, images)[95]. For example, a product document may include SKU, title, brand, category list, variants array (with size/color/price), attributes, and current inventory snapshot[96]. The PostgreSQL inventory table (with available_qty, allocated_qty) holds the authoritative stock levels[97]. Changes in Mongo or Postgres trigger events to keep other stores (e.g. search index) in sync.
+Overall, this design leverages MongoDB for read-heavy, flexible catalog operations, and PostgreSQL for ACID-safe transactional operations (orders/payments)[95][98].
+10. API Endpoints & Integration
+The backend exposes RESTful JSON APIs (and optionally GraphQL) for all operations. Examples include:
+• POST /api/auth/register – create a new user account.
+• POST /api/auth/login – authenticate and obtain JWT tokens[99].
+• GET /api/products – retrieve product catalog (supports query params for category, search text, pagination, filters)[100].
+• GET /api/products/{id} – retrieve detailed product information by ID[101].
+• POST /api/cart – add item to user’s cart. GET /api/cart – view current cart, PUT /api/cart – update cart quantities.
+• POST /api/checkout – initiate checkout with request body including cart ID, shipping/billing addresses, selected payment method (stripe/jazzcash/easypaisa) and optional promo code[102]. Response includes order ID and (if needed) a redirect/payment URL[102].
+• GET /api/orders/{id} – fetch order status/details for a given order (auth users only).
+• POST /api/admin/products – (Admin) create new product. PUT /api/admin/products/{id} – update product. DELETE /api/admin/products/{id} – delete product[103].
+• GET /api/admin/orders – (Admin) list all orders with filters. PATCH /api/admin/orders/{id} – update order status.
+• POST /api/admin/discounts – (Admin) create coupon code campaign[104].
+• POST /api/webhooks/stripe – Stripe webhook endpoint: validates signature, processes payment_intent.succeeded, charge.refunded events, stores raw payload, and updates Payments table[105].
+• POST /api/webhooks/easypaisa, /api/webhooks/jazzcash – endpoints for local payment gateways (similar flow).
+All endpoints require HTTPS. Authenticated routes use JWT (access token) and may also require role checks for admin/seller actions. The system applies rate-limiting on sensitive endpoints (login, payment, webhook) to mitigate abuse.
+11. Data Flow & Event-Driven Processes
+The platform uses event-driven patterns to decouple services and ensure data consistency. Key flows:
+• Checkout / Order Flow: Illustrated simplified sequence:
+• Customer submits checkout → API Gateway → Order Service (Postgres) writes Order/OrderItems and an Outbox entry (e.g. event OrderPlaced).
+• Outbox publisher reads OrderPlaced event and publishes to message broker (ensuring idempotency and retry logic)[60].
+• Inventory Service (consumer) receives the event and reserves stock (decrement available_qty)[106].
+• Payment Service creates a payment intent (Stripe/EasyPaisa) and returns a payment session or redirect URL. Customer completes payment via gateway.
+• Gateway triggers a webhook (/api/webhooks/...), and the Payment Service finalizes the payment: it updates the Payments table and emits PaymentSucceeded event[107].
+• Order Service consumes PaymentSucceeded, finalizes the Order status to Paid, and triggers any post-order processes (invoice generation, notification)[107].
+This outbox+broker pattern ensures reliable messaging[60]. All transactional updates (orders, payments, outbox) occur within a single DB transaction for atomicity. We plan optional Debezium CDC: using a Debezium connector on Postgres to stream change events (e.g. product updates) to Kafka topics, consumed by Mongo or analytics services[108].
+• Data Flow Diagrams: At a top level, the system interacts with two external actors: Customer and Admin/Seller. Customers send requests (login, browse, add to cart, checkout) to the website, which in turn reads/writes from internal databases and external APIs (payments, shipping). Administrators use the Seller Center to update products and orders, which sync to the site. The Context-Level DFD is shown below.
+Figure 2: Context-Level Data Flow Diagram (customers and sellers interacting with the Buy2Enjoy system).
+In the diagram, data stores like UsersDB, ProductDB, OrderDB, and external APIs (Payment, Shipping) are depicted. For example, the “Place Order” process takes Cart data and payment confirmation to create an Order record and a Shipment record.
+• Workflow Summaries: These DFDs (conceptual) help trace data movement: e.g., when a user adds a product to cart, it reads Products and writes to CartItems. During checkout, writes occur to Orders, OrderItems, Payments, and Shipments tables in sequence[109][60]. The Seller Center sync hooks trigger corresponding updates on the e-commerce side. All flows are logged and can be audited if needed.
+12. Inventory Management & Concurrency
+Inventory correctness is critical to prevent overselling. We employ reservation patterns:
+1. Reserve-on-Checkout: In the checkout transaction, the Inventory Service does a SELECT FOR UPDATE on the desired product SKU row, then decrements available_qty and increments allocated_qty[110]. It also creates an inventory_reservations record with an expiration (e.g. 15 minutes) for the held stock.
+2. Release on Timeout/Cancel: A background job periodically scans expired reservations and returns stock to available_qty (reducing allocated_qty)[110].
+3. High-Concurrency (Flash Sales): For extreme load, we use Redis tokens: preload N tokens per SKU into Redis. Each checkout pops a token to reserve stock instantly, and then an async process reconciles these reservations in Postgres. This reduces DB contention[110].
+Example pseudocode (NestJS in Appendix A) shows how an atomic transaction reserves inventory and writes an outbox event.
+High Availability: Inventory data (Postgres) is replicated (read replicas) for fault tolerance. In-memory caching (Redis) may store stock levels for hot-selling items, with updates on stock changes.
+13. Payments & Gateway Integration
+The platform supports multiple payment methods with robust integration:
+• Stripe (Credit/Debit Cards): We integrate Stripe using its Checkout or Payment Intents API[111]. On checkout, the frontend requests a Stripe session ID from the Payment Service. The customer completes payment on Stripe’s hosted page or via Stripe.js. Stripe sends webhooks (payment_intent.succeeded, charge.refunded, etc.) to our /api/webhooks/stripe endpoint[107]. We validate the Stripe-Signature header, then update our Payments table (storing transaction ID and status) and publish a PaymentSucceeded event. Using Stripe’s tokenization greatly reduces PCI scope[14].
+• Local Gateways (JazzCash & Easypaisa): These are integrated via their REST APIs. The Payment Service creates a payment request and either redirects the user to the gateway or handles an embedded flow as provided. Upon return or callback, the service verifies the transaction details on the server side, updates the payment status, and normalizes the data. Because each gateway has quirks, we implement idempotent operations (using our own idempotency_key) to handle duplicate callbacks[112]. All gateway interactions log raw payloads for auditing.
+• Bank Transfers: For direct bank payments, we either use bank APIs or instruct users with bank details. Once funds are confirmed, an admin marks the order as paid, triggering the same event flows.
+All payment methods ultimately emit a unified PaymentSucceeded or PaymentFailed event into the broker. The Order Service listens to these to finalize order status. We store only non-sensitive data (gateway tokens/IDs) in our database; no credit card data is ever stored[14].
+14. Search, Indexing & Discovery
+For fast and relevant product search, we integrate Typesense (or Elasticsearch):
+• Search Index: We maintain a search index populated from our product catalog. On product creation or update (including price/stock changes), events are emitted (e.g. ProductUpdated, InventoryUpdated) that trigger index updates. The index schema includes fields like id, title, sku, brand, category_ids, variants[].sku, price, available_qty, attributes[113]. We configure facets (brand, category, price range) and enable typo-tolerance and fuzzy matching.
+• Relevance & Boosting: Popularity scores (based on sales) and promotional boosts (e.g. pinned products) can adjust ranking. Synonyms and local-language variants are added to improve search recall for regional terms[114]. We provide autocomplete suggestions by indexing title and keywords.
+• Recommendation Engine: Though not full AI, we generate “Customers also bought” lists by analyzing past orders. This uses collaborative filtering logic in a separate analytics job and is shown on product pages.
+In short, search is near real-time, leveraging Typesense for low-latency queries and advanced features[113].
+15. Caching, CDN & Media Handling
+To optimize performance:
+• CDN: We use CloudFront (AWS) or similar to serve static assets (images, JavaScript, CSS)[115]. All media (product images) are stored in S3 and served via CDN for low latency.
+• Image Processing: Integrate Cloudinary or similar for dynamic image resizing and compression. Source images are stored in S3 (or Cloudinary), then URLs can request resized/optimized versions. The CDN caches the transformed images.
+• Application Caching: Use Redis to cache frequent reads: e.g. homepage fragments, category pages, or product lookups. Implement a stale-while-revalidate pattern: serve slightly stale cache while refreshing in the background on updates[115].
+• Cache Invalidation: On product updates or promotions, we purge or update relevant cache keys/CDN paths. Implement cache-busting (version tokens) in image URLs so updated images are fetched.
+• Database Caching: Read replicas for Postgres handle read traffic; ensure write queries go to master.
+This caching/CDN strategy reduces load on origin servers and accelerates content delivery globally.
+16. Security, Privacy & Compliance
+Security is integral:
+• Network Security: All services use HTTPS/TLS (HSTS enforced). Application of secure headers (CSP) and secure cookies prevent XSS and related attacks[14].
+• Authentication: Stateless JWT tokens (RS256) are issued on login[3]. Access tokens are short-lived, refresh tokens allow session renewal. Each request is validated and includes a correlation ID for traceability.
+• Authorization: Role-based access control (RBAC) is enforced at the service level. Customers have only shopping privileges; admin routes check the JWT role claim.
+• Data Protection: Sensitive data (passwords, payment tokens) are stored hashed/encrypted. We never store raw card data[14]. Database inputs use parameterized queries/ORM to avoid SQL injection[3].
+• API Security: Input validation on all APIs; rate limiting on auth and payment endpoints. We use AWS WAF (or similar) to guard against DDoS and malicious traffic.
+• PCI Compliance: By redirecting payments to Stripe (checkout) or using tokenization, we minimize PCI scope[14]. We follow SAQ guidelines and schedule regular vulnerability scans. Audit logs for transactions are maintained for at least one year[116].
+• Privacy & GDPR: Users can delete their data via an account deletion endpoint. We honor GDPR-style “right to be forgotten” by removing or anonymizing personal data upon request (with exceptions for legal order records). We retain transactional data per local finance regulations.
+17. Observability, Monitoring & Runbooks
+We implement comprehensive monitoring:
+• Metrics: Services expose Prometheus metrics (latency, error rates, request counts, DB pool usage). We monitor key KPIs: API latency p95, checkout success rate, and queue depths.
+• Tracing & Logs: Use OpenTelemetry/Jaeger for distributed tracing (attach trace IDs to API requests). Logs (structured JSON) are aggregated (ELK or CloudWatch) with correlation IDs. Slow queries and errors are logged for analysis.
+• Alerts: Set up alerts for high error rates, failed payments, or stock discrepancies. Uptime monitors and synthetic transactions (e.g. periodic test checkout) validate end-to-end health.
+Runbook Examples: (triggered when incidents occur)
+- Payment Failure: If a high rate of payment failures is detected, check Payment Service logs, verify gateway health, and attempt to replay any failed webhooks[117].
+- Slow DB: If DB CPU or latency spikes, scale read replicas, analyze slow queries, and optimize indexes or queries.
+- Outbox Stuck: If the outbox table has many unpublished events, check publisher logs, restart the publishing service, and inspect the dead-letter queue for problematic payloads[117].
+- Inventory Imbalance: If front-end stock differs from Seller Center, trigger a full sync job or investigate caching layers.
+Runbooks are documented in TeamDocs; critical recovery steps are rehearsed in drills.
+18. Deployment, CI/CD & Infrastructure
+• Infrastructure: AWS (or equivalent) is recommended. For example: Elastic Kubernetes Service (EKS) or ECS for containers; RDS/Aurora for Postgres; MongoDB Atlas for Mongo; ElastiCache for Redis; CloudFront CDN; S3 for static assets[13]. Use Terraform/CloudFormation for all provisioning. Multi-AZ deployments ensure resilience.
+• CI/CD Pipeline: A GitOps flow (e.g. GitHub Actions) builds Docker images on merge, runs unit/integration tests, and pushes images to a registry. On success, deployments progress to a staging environment (with automated smoke tests), then to production (via manual approval)[62]. Feature flags allow incremental rollout. Database migrations are versioned (e.g. via Migrations) and executed automatically.
+• Rolling Updates: Services deploy with minimal downtime using rolling update strategies. Health checks (readiness/liveness probes) ensure new instances are ready before routing traffic. Load balancers distribute requests.
+• Infrastructure as Code (IaC): Entire stack (network, clusters, prs, cache, storage) is defined in Terraform. Disaster Recovery (DR) resources (standby regions, read replicas) are scripted to allow quick failover.
+This setup ensures consistent environments and rapid iteration while maintaining stability and rollback capabilities.
+19. Testing & Quality Assurance
+• Unit Tests: Each service has a suite of unit tests (e.g. Jest) for business logic. Code coverage targets 80%+.
+• Integration Tests: Use testcontainers or Docker Compose to spin up dependent services (databases, message broker) and run API-level tests in CI.
+• Contract Tests: Employ consumer-driven contract testing (e.g. Pact) for critical service interactions (e.g. frontend ↔ catalog service).
+• End-to-End (E2E) Tests: Automated UI tests (Playwright/Cypress) simulate common user flows (search, add to cart, checkout).
+• Load Testing: Use tools like k6 to simulate peak loads on endpoints, especially checkout and search. Perform spike and stress tests (e.g. simulating flash sale traffic).
+• Chaos Testing: Periodically induce failures (kill pods, cut database) in staging to validate system resilience (using frameworks like LitmusChaos).
+• Penetration Testing: Before release, conduct security audits/pen tests on the platform (external provider if possible) to validate security posture.
+20. Operational Continuity, DR & Backups
+• Backups:
+• PostgreSQL: Daily automated snapshots + Continuous WAL archiving for point-in-time recovery[118].
+• MongoDB: Atlas built-in backup with automated snapshots; regularly test restore.
+• Redis: Use replication and periodic save to S3.
+• S3: Enable versioning and cross-region replication for critical buckets (e.g. product images).
+• Configuration: Store infrastructure config (Terraform state) and secrets (e.g. in AWS Secrets Manager) with redundancy.
+• Disaster Recovery (DR):
+• RTO (Recovery Time Objective): 1 hour for core services; RPO (Recovery Point Objective): ~15 minutes for Postgres (via WAL)[119].
+• For region failure: promote read replicas (Postgres) or failover RDS/Aurora, re-point DNS, and redeploy services in secondary region via IaC.
+• Critical data (orders, user data) is multi-AZ or multi-region replicated as per DR plan.
+• Operational Playbooks: Documented steps for major incident types (e.g. region outage, data corruption). Teams are trained on these procedures.
+21. Risks, Mitigations & Roadmap
+Risks & Mitigations: Key identified risks include:
+- Inventory Oversell (Flash Sales): Mitigate by Redis token bucket and Postgres SELECT-FOR-UPDATE reservations; implement rate limiting on cart checkout to throttle high concurrency[110].
+- Delayed Payment Webhooks: If gateway callbacks are slow/missed, we store raw events and use idempotent processing with retries/backoff. Manual webhook replay tools available[107].
+- Search Index Drift: If search index falls out of sync, run periodic full re-index jobs from Mongo. Monitor consumers for lag and health, with auto-restart if they fail[114].
+- Operational Complexity: Microservices add complexity. Mitigation: and introduce Kafka only when needed; automate deployment and scaling; maintain documentation and on-call rotations.
+- Compliance Failures: Risk of missing PCI/GDPR requirements. Mitigation: schedule regular third-party audits, use automated code scanners, maintain compliance checklists (Appendix D).
+Roadmap / Milestones: (indicative)
+- MVP (Weeks 0–8): Core storefront (browse, cart, checkout using Stripe sandbox), basic admin CRUD, PostgreSQL inventory.
+- Phase 2 (Weeks 8–16): Implement search (Typesense), event outbox + message broker, Redis reservation, integrate at least one courier API (e.g. Leopards) for shipping updates.
+- Phase 3 (Weeks 16–28): Multi-warehouse support, promotions/coupons engine, advanced analytics dashboard, add optional payment redundancy (multiple gateways).
+- Future: Expand to multi-vendor marketplace, mobile app integration, further personalization, AI-driven search ranking.
+22. Appendices (Examples, Checklists)
+• Appendix A: Order Creation Code Sample – Transactional code that creates an order and writes an outbox event (see Buy2Enjoy_Specification_Complete.docx)[120][121].
+• Appendix B Schema Excerpt (shown in spec, illustrating Order model)[122].
+• Appendix C: Full Postgres DDL (comprehensive schema, see Section 8 excerpts in document)[98][123].
+• Appendix D: Pre-launch & Post-launch Checklists: e.g. domain/SSL setup, payment gateway test keys, webhook URL configurations, backup jobs. (Checklist items from spec: “Pre-launch checklist: domain & SSL, payment test keys, webhook URLs, CDN config, backups”[124].)
+
+[1] [3] [9] [12] [16] [19] [20] [22] [35] [41] [49] [50] [53] [55] [57] [61] [99] [100] [101] [103] [104] Buy2Enjoy website.docx
+file://file-36mdSH9qyBgGwNRL89KPMU
+[2] [4] [5] [8] [10] [11] [13] [14] [15] [17] [21] [24] [43] [46] [52] [56] [58] [59] [60] [62] [95] [96] [97] [98] [102] [105] [106] [107] [108] [110] [111] [112] [113] [114] [115] [116] [117] [118] [119] [120] [121] [122] [123] [124] Buy2Enjoy_Specification_Complete.docx
+file://file-VDDak7GDdyGisvQmstN2S3
+[6] [7] [18] [23] [25] [26] [27] [28] [29] [30] [31] [32] [33] [34] [36] [37] [38] [39] [40] [42] [44] [45] [47] [48] [51] [54] [63] [64] [65] [66] [67] [68] [69] [70] [71] [72] [73] [74] [75] [76] [77] [78] [79] [80] [81] [82] [83] [84] [85] [86] [87] [88] [89] [90] [91] [92] [93] [94] [109] Project Overview and Tech Stack.docx
+file://file-5fd8gxLr4hom1NV1aNJLxm

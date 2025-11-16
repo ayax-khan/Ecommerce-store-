@@ -1,0 +1,14 @@
+{
+  "name": "buy2enjoy",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "web:dev": "npm run -w web dev",
+    "web:build": "npm run -w web build",
+    "api:dev": "npm run -w api start:dev",
+    "api:build": "npm run -w api build"
+  }
+}
